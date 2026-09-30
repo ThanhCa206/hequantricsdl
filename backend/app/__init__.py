@@ -1,0 +1,1 @@
+"""BenchLab backend application."""
