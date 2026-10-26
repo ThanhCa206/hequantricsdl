@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Giới Thiệu Ngắn Gọn
+## 1. Giới Thiệu
 
 **PT Lab** được thiết kế để giải quyết bài toán so sánh hiệu năng giữa SQL và NoSQL một cách khách quan, loại bỏ các biến gây nhiễu:
 - **Tài nguyên kiểm soát chặt chẽ:** Giới hạn quota cứng cố định `cpus: '2.0'`, `mem_limit: 2048m` bằng Docker cgroups cho từng hệ quản trị CSDL.
