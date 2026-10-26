@@ -1,0 +1,11 @@
+{
+  "name": "large",
+  "description": "Large scale profile for pilot experiments and data scaling trends (1M orders)",
+  "num_customers": 100000,
+  "num_products": 20000,
+  "num_orders": 1000000,
+  "min_items_per_order": 1,
+  "max_items_per_order": 5,
+  "default_seed": 42,
+  "distribution": "uniform"
+}

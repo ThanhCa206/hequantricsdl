@@ -1,0 +1,81 @@
+{
+  "customers": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["_id", "name", "city_code", "created_at"],
+      "properties": {
+        "_id": { "bsonType": ["int", "long"], "description": "Customer ID (int64) PK" },
+        "name": { "bsonType": "string", "description": "Full customer name" },
+        "city_code": { "bsonType": "string", "description": "10-city code (ASCII)" },
+        "created_at": { "bsonType": "string", "description": "ISO-8601 UTC timestamp" }
+      }
+    }
+  },
+  "products": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["_id", "name", "category_code", "base_price_minor"],
+      "properties": {
+        "_id": { "bsonType": ["int", "long"], "description": "Product ID (int64) PK" },
+        "name": { "bsonType": "string", "description": "Product name" },
+        "category_code": { "bsonType": "string", "description": "Category code (CAT01-CAT20)" },
+        "base_price_minor": { "bsonType": ["int", "long"], "minimum": 0, "description": "Price in VND minor units" }
+      }
+    }
+  },
+  "orders": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["_id", "customer_id", "order_date", "status", "total_minor"],
+      "properties": {
+        "_id": { "bsonType": ["int", "long"], "description": "Order ID (int64) PK" },
+        "customer_id": { "bsonType": ["int", "long"], "description": "Foreign customer reference" },
+        "order_date": { "bsonType": "string", "description": "ISO-8601 UTC timestamp" },
+        "status": { "enum": ["pending", "paid", "shipped", "cancelled"] },
+        "total_minor": { "bsonType": ["int", "long"], "minimum": 0, "description": "Total in VND minor units" }
+      }
+    }
+  },
+  "order_items": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["_id", "order_id", "line_no", "product_id", "quantity", "unit_price_minor"],
+      "properties": {
+        "_id": { "bsonType": "string", "description": "order_id:line_no composite ID" },
+        "order_id": { "bsonType": ["int", "long"], "description": "Order reference" },
+        "line_no": { "bsonType": ["int", "long"], "minimum": 1, "description": "Line number within order (1-5)" },
+        "product_id": { "bsonType": ["int", "long"], "description": "Product reference" },
+        "quantity": { "bsonType": ["int", "long"], "minimum": 1, "description": "Ordered quantity" },
+        "unit_price_minor": { "bsonType": ["int", "long"], "minimum": 0, "description": "Unit price at order time" }
+      }
+    }
+  },
+  "orders_embedded": {
+    "$jsonSchema": {
+      "bsonType": "object",
+      "required": ["_id", "customer_id", "order_date", "status", "total_minor", "items"],
+      "properties": {
+        "_id": { "bsonType": ["int", "long"], "description": "Order ID (int64) PK" },
+        "customer_id": { "bsonType": ["int", "long"], "description": "Customer reference" },
+        "order_date": { "bsonType": "string", "description": "ISO-8601 UTC timestamp" },
+        "status": { "enum": ["pending", "paid", "shipped", "cancelled"] },
+        "total_minor": { "bsonType": ["int", "long"], "minimum": 0 },
+        "items": {
+          "bsonType": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "bsonType": "object",
+            "required": ["line_no", "product_id", "quantity", "unit_price_minor"],
+            "properties": {
+              "line_no": { "bsonType": ["int", "long"], "minimum": 1 },
+              "product_id": { "bsonType": ["int", "long"] },
+              "quantity": { "bsonType": ["int", "long"], "minimum": 1 },
+              "unit_price_minor": { "bsonType": ["int", "long"], "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

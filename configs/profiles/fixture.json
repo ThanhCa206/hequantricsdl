@@ -1,0 +1,11 @@
+{
+  "name": "fixture",
+  "description": "Minimal dataset profile for correctness oracle and manual inspection",
+  "num_customers": 12,
+  "num_products": 20,
+  "num_orders": 50,
+  "min_items_per_order": 1,
+  "max_items_per_order": 5,
+  "default_seed": 42,
+  "distribution": "uniform"
+}

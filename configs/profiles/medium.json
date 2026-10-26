@@ -1,0 +1,11 @@
+{
+  "name": "medium",
+  "description": "Medium scale profile for primary workstation benchmarking (100k orders)",
+  "num_customers": 10000,
+  "num_products": 5000,
+  "num_orders": 100000,
+  "min_items_per_order": 1,
+  "max_items_per_order": 5,
+  "default_seed": 42,
+  "distribution": "uniform"
+}

@@ -1,0 +1,163 @@
+# ==============================================================================
+# BenchLab Docker Compose Infrastructure
+# Specific to Research Project: PostgreSQL 17.2 vs MongoDB 8.0.4 Benchmark
+# Host Quota: 2 vCPU, 2048MB RAM per database container (DEC-002)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL Service (Relational Database)
+  # Image pinned to 17.2-alpine as per DEC-001
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:17.2-alpine
+    container_name: benchlab-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-benchlab_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchlab_dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-benchlab_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    command: >
+      postgres
+      -c max_connections=${POSTGRES_MAX_CONNECTIONS:-50}
+      -c work_mem=${POSTGRES_WORK_MEM:-16MB}
+      -c shared_buffers=512MB
+      -c checkpoint_completion_target=0.9
+      -c synchronous_commit=off
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - benchlab-pgdata:/var/lib/postgresql/data
+    networks:
+      - benchlab-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-benchlab_user} -d ${POSTGRES_DB:-benchlab_db} -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ----------------------------------------------------------------------------
+  # MongoDB Service (Document NoSQL Database)
+  # Image pinned to 8.0.4 as per DEC-001
+  # ----------------------------------------------------------------------------
+  mongodb:
+    image: mongo:8.0.4
+    container_name: benchlab-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-benchlab_user}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-benchlab_dev_password_change_me}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-benchlab_db}
+    command: >
+      mongod
+      --wiredTigerCacheSizeGB=1
+      --bind_ip_all
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
+    volumes:
+      - benchlab-mongodata:/data/db
+    networks:
+      - benchlab-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand({ping: 1}).ok' -u ${MONGO_INITDB_ROOT_USERNAME:-benchlab_user} -p ${MONGO_INITDB_ROOT_PASSWORD:-benchlab_dev_password_change_me} --authenticationDatabase admin || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ----------------------------------------------------------------------------
+  # Backend API & Benchmark Worker Service
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: benchlab-api
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-benchlab_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchlab_dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-benchlab_db}
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-benchlab_user}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-benchlab_dev_password_change_me}
+      MONGO_DB: ${MONGO_DB:-benchlab_db}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - ./results:/app/results
+      - ./configs:/app/configs
+    networks:
+      - benchlab-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/api/health\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ----------------------------------------------------------------------------
+  # Frontend Dashboard Service
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: benchlab-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:80"
+    networks:
+      - benchlab-net
+    depends_on:
+      - api
+
+volumes:
+  benchlab-pgdata:
+    name: benchlab-pgdata
+  benchlab-mongodata:
+    name: benchlab-mongodata
+
+networks:
+  benchlab-net:
+    name: benchlab-net
+    driver: bridge

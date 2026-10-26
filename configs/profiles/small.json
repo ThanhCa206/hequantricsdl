@@ -1,0 +1,11 @@
+{
+  "name": "small",
+  "description": "Small scale profile for smoke benchmark, CI verification and live demos",
+  "num_customers": 1000,
+  "num_products": 500,
+  "num_orders": 10000,
+  "min_items_per_order": 1,
+  "max_items_per_order": 5,
+  "default_seed": 42,
+  "distribution": "uniform"
+}
