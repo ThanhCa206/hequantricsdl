@@ -63,15 +63,8 @@ results/*
 !results/.gitkeep
 !results/fixtures/
 
-# Internal notes and draft documentation
+# Internal notes and documentation (internal only)
 project_review.md
 tasks/
-docs/tasks.md
-docs/walkthrough.md
-docs/test-report.md
-docs/decisions.md
-docs/limitations.md
-docs/implementation-plan.md
-docs/demo-script.md
-docs/final-report.md
+docs/
 
