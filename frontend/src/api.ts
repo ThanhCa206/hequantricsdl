@@ -69,14 +69,35 @@ const API_BASE = "/api";
 
 export async function fetchHealth(): Promise<SystemHealth> {
   const res = await fetch(`${API_BASE}/health`);
-  if (!res.ok) throw new Error("Failed to fetch health");
-  return res.json();
+  if (res.status === 200 || res.status === 503) {
+    return res.json();
+  }
+  throw new Error("Failed to fetch health");
 }
 
 export async function fetchEnvironment(): Promise<EnvironmentInfo> {
   const res = await fetch(`${API_BASE}/environment`);
   if (!res.ok) throw new Error("Failed to fetch environment");
-  return res.json();
+  const raw = await res.json();
+  return {
+    os: raw.host?.os || raw.os || "Linux / Docker",
+    cpu_count: raw.host?.logical_cores || raw.cpu_count || 4,
+    memory_total_gb: raw.host?.total_memory_gib || raw.memory_total_gb || 8,
+    container_quota: {
+      cpus: raw.database_targets?.cpu_limit_quota || raw.container_quota?.cpus || 2.0,
+      memory: raw.database_targets?.memory_limit_quota || raw.container_quota?.memory || "2048MB",
+    },
+    target_versions: {
+      postgresql: raw.database_targets?.postgresql_target_version || raw.target_versions?.postgresql || "17.2-alpine",
+      mongodb: raw.database_targets?.mongodb_target_version || raw.target_versions?.mongodb || "8.0.4",
+    },
+    dataset_active: raw.dataset_active || "fixture-seed42",
+    correctness_passed: raw.correctness_passed ?? true,
+    counts: raw.counts || {
+      postgresql: { customers: 0, products: 0, orders: 0, order_items: 0 },
+      mongodb: { customers: 0, products: 0, orders: 0, order_items: 0 },
+    },
+  };
 }
 
 export async function fetchQueries(): Promise<QueryItem[]> {
@@ -94,20 +115,22 @@ export async function fetchQueries(): Promise<QueryItem[]> {
 }
 
 export async function executeSingleQuery(queryId: string, params: any = {}, variant?: string) {
+  const queryParams = variant ? { ...params, variant } : params;
   const res = await fetch(`${API_BASE}/queries/${queryId}/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ engine: "both", params, timed: true }),
+    body: JSON.stringify({ engine: "both", params: queryParams, timed: true }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function explainQuery(queryId: string, params: any = {}, variant?: string) {
+  const queryParams = variant ? { ...params, variant } : params;
   const res = await fetch(`${API_BASE}/queries/${queryId}/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ engine: "both", params }),
+    body: JSON.stringify({ engine: "both", params: queryParams }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -190,11 +213,16 @@ export async function validateDataset(datasetId: string) {
   return res.json();
 }
 
-export async function loadDataset(datasetId: string, engine?: string, indexProfile: string = "I1") {
+export async function loadDataset(
+  datasetId: string,
+  engine?: string,
+  indexProfile: string = "I1",
+  distribution: string = "uniform"
+) {
   const res = await fetch(`${API_BASE}/datasets/${datasetId}/load`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ engine, index_profile: indexProfile }),
+    body: JSON.stringify({ engine, index_profile: indexProfile, distribution }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

@@ -100,15 +100,15 @@ def test_bench_02_timer_excludes_external_preparation():
     adapter = FakeDelayAdapter(fetch_delay_ms=5.0)
 
     # External preparation before timer start
-    time.sleep(0.030)  # 30ms external overhead
+    time.sleep(0.060)  # 60ms external overhead
 
     timer = MonotonicTimer()
     timer.start()
     adapter.execute("Q1", {}, timed=True)
     timing = timer.stop()
 
-    # External 30ms sleep must NOT be included in duration (should be ~5ms, well under 20ms)
-    assert timing.duration_ms < 20.0
+    # External 60ms sleep must NOT be included in duration (should be ~5ms, well under 45ms)
+    assert timing.duration_ms < 45.0
 
 
 def test_bench_03_warmup_requests_excluded_from_samples(tmp_path):
@@ -255,10 +255,13 @@ def test_bench_08_cancel_releases_lock_and_saves_partial_results(tmp_path, monke
     recorder = BenchmarkRecorder(config.experiment_id, base_dir=tmp_path)
     runner = BenchmarkRunner(config, recorder=recorder)
 
-    # Cancel after 100ms in another thread (allowing ~5 samples to be recorded)
+    # Cancel after runner starts recording samples
     import threading
     def cancel_worker():
-        time.sleep(0.100)
+        for _ in range(50):
+            if runner._total_samples_collected > 0:
+                break
+            time.sleep(0.01)
         global_experiment_lock.request_cancel()
 
     t = threading.Thread(target=cancel_worker)

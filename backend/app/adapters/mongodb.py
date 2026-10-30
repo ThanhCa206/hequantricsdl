@@ -117,10 +117,16 @@ class MongoAdapter(BaseAdapter):
         from app.domain.query_catalog import MONGO_BUILDERS, normalize_query_output
 
         db = self.db
-        if query_id in MONGO_BUILDERS and ("type" not in params and "collection" not in params):
+        if query_id in MONGO_BUILDERS:
             q_def = MONGO_BUILDERS[query_id](params)
+        elif query_id.startswith("live_test") and "collection" in params:
+            q_def = {
+                "collection": params["collection"],
+                "type": params.get("type", params.get("operation", "find")),
+                "filter": params.get("filter", {}),
+            }
         else:
-            q_def = params
+            raise ValueError(f"Query '{query_id}' not found in MongoDB catalog.")
 
         collection_name = q_def.get("collection", "orders")
         op_type = q_def.get("type", "find")  # "find" | "aggregate" | "count"
@@ -199,10 +205,16 @@ class MongoAdapter(BaseAdapter):
         from app.domain.query_catalog import MONGO_BUILDERS
 
         db = self.db
-        if query_id in MONGO_BUILDERS and ("type" not in params and "collection" not in params):
+        if query_id in MONGO_BUILDERS:
             q_def = MONGO_BUILDERS[query_id](params)
+        elif query_id.startswith("live_test") and "collection" in params:
+            q_def = {
+                "collection": params["collection"],
+                "type": params.get("type", params.get("operation", "find")),
+                "filter": params.get("filter", {}),
+            }
         else:
-            q_def = params
+            raise ValueError(f"Query '{query_id}' not found in MongoDB catalog.")
 
         collection_name = q_def.get("collection", "orders")
         op_type = q_def.get("type", "find")

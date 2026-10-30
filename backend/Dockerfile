@@ -21,10 +21,11 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Copy application source
+# Copy application source and test suite
 COPY backend /app/backend
 COPY configs /app/configs
 COPY queries /app/queries
+COPY tests /app/tests
 
 # Ensure results directory exists
 RUN mkdir -p /app/results

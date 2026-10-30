@@ -5,6 +5,7 @@ Implements CLI commands defined in SPEC.md section 15.
 import argparse
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Ensure backend directory is in sys.path

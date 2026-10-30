@@ -10,20 +10,21 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import PlainTextResponse
 
+from app.config import get_settings
 from app.reports.statistics import analyze_experiment_samples
 from app.reports.exporter import generate_markdown_report, generate_csv_summary
 
 router = APIRouter(prefix="/results", tags=["Results & Analysis"])
 
 
-def _get_safe_exp_dir(experiment_id: str, base_dir: str = "results") -> Path:
+def _get_safe_exp_dir(experiment_id: str, base_dir: Optional[str] = None) -> Path:
     """Validate experiment_id against path traversal attacks (SPEC Section 12)."""
     if not re.match(r"^[a-zA-Z0-9_\-]+$", experiment_id):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid experiment ID '{experiment_id}': only alphanumeric characters, dashes, and underscores allowed.",
         )
-    base_path = Path(base_dir).resolve()
+    base_path = Path(base_dir or get_settings().results_dir).resolve()
     target_path = (base_path / experiment_id).resolve()
     if not str(target_path).startswith(str(base_path)):
         raise HTTPException(status_code=400, detail="Path traversal attempt detected.")
@@ -33,7 +34,7 @@ def _get_safe_exp_dir(experiment_id: str, base_dir: str = "results") -> Path:
 
 
 @router.get("/{experiment_id}/summary")
-def get_experiment_summary(experiment_id: str, base_dir: str = "results") -> Dict[str, Any]:
+def get_experiment_summary(experiment_id: str, base_dir: Optional[str] = None) -> Dict[str, Any]:
     """Calculate and return full statistical summary (p50..p99, QPS, bootstrap CI)."""
     exp_dir = _get_safe_exp_dir(experiment_id, base_dir)
     summary = analyze_experiment_samples(exp_dir)
@@ -43,7 +44,7 @@ def get_experiment_summary(experiment_id: str, base_dir: str = "results") -> Dic
 
 
 @router.get("/{experiment_id}/resources")
-def get_experiment_resources(experiment_id: str, base_dir: str = "results") -> List[Dict[str, Any]]:
+def get_experiment_resources(experiment_id: str, base_dir: Optional[str] = None) -> List[Dict[str, Any]]:
     """Retrieve time-series CPU and RAM resource metrics."""
     exp_dir = _get_safe_exp_dir(experiment_id, base_dir)
     res_file = exp_dir / "resources.csv"
@@ -66,7 +67,7 @@ def get_experiment_resources(experiment_id: str, base_dir: str = "results") -> L
 
 
 @router.get("/{experiment_id}/plans")
-def get_experiment_plans(experiment_id: str, base_dir: str = "results") -> Dict[str, Any]:
+def get_experiment_plans(experiment_id: str, base_dir: Optional[str] = None) -> Dict[str, Any]:
     """Retrieve execution plans collected after the experiment."""
     exp_dir = _get_safe_exp_dir(experiment_id, base_dir)
     plans_dir = exp_dir / "plans"
@@ -84,7 +85,7 @@ def get_experiment_plans(experiment_id: str, base_dir: str = "results") -> Dict[
 
 
 @router.get("/{experiment_id}/export/markdown", response_class=PlainTextResponse)
-def export_markdown(experiment_id: str, base_dir: str = "results"):
+def export_markdown(experiment_id: str, base_dir: Optional[str] = None):
     """Export formatted Markdown report."""
     exp_dir = _get_safe_exp_dir(experiment_id, base_dir)
     summary = analyze_experiment_samples(exp_dir)
@@ -92,7 +93,7 @@ def export_markdown(experiment_id: str, base_dir: str = "results"):
 
 
 @router.get("/{experiment_id}/export/csv", response_class=PlainTextResponse)
-def export_csv(experiment_id: str, base_dir: str = "results"):
+def export_csv(experiment_id: str, base_dir: Optional[str] = None):
     """Export CSV summary data."""
     exp_dir = _get_safe_exp_dir(experiment_id, base_dir)
     summary = analyze_experiment_samples(exp_dir)

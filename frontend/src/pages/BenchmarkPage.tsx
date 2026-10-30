@@ -47,17 +47,39 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     let isMounted = true;
-    const poll = async () => {
-      try {
-        const s = await fetchBenchmarkStatus();
-        if (isMounted) setStatus(s);
-      } catch (err) {}
+    let timerId: any = null;
+
+    const scheduleNextPoll = (delay: number) => {
+      if (!isMounted) return;
+      timerId = setTimeout(async () => {
+        try {
+          const s = await fetchBenchmarkStatus();
+          if (isMounted) {
+            setStatus(s);
+            const running = s.is_locked || s.state === "RUNNING" || s.state === "DRAINING";
+            scheduleNextPoll(running ? 800 : 3000);
+          }
+        } catch (err) {
+          if (isMounted) scheduleNextPoll(3000);
+        }
+      }, delay);
     };
-    poll();
-    const interval = setInterval(poll, 800);
+
+    fetchBenchmarkStatus()
+      .then((s) => {
+        if (isMounted) {
+          setStatus(s);
+          const running = s.is_locked || s.state === "RUNNING" || s.state === "DRAINING";
+          scheduleNextPoll(running ? 800 : 3000);
+        }
+      })
+      .catch(() => {
+        if (isMounted) scheduleNextPoll(3000);
+      });
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (timerId) clearTimeout(timerId);
     };
   }, []);
 

@@ -16,6 +16,7 @@ RUN if [ -f package.json ]; then npm run build; else mkdir -p dist && echo "<h1>
 
 FROM nginx:1.27-alpine
 
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80

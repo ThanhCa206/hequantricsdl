@@ -379,8 +379,7 @@ class BenchmarkRunner:
         deadline_time = start_time + duration_s
 
         def worker_loop(worker_id: int) -> int:
-            worker_adapter = get_adapter(adapter.engine_name)
-            worker_adapter.prepare()
+            worker_adapter = adapter
             seq = 0
 
             while time.perf_counter() < deadline_time and not self.lock.is_cancelled():

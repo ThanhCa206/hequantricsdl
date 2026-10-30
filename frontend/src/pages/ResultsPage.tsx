@@ -76,7 +76,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({ initialExpId }) => {
   const filteredQueries = selectedQuery === "ALL" ? queryKeys : [selectedQuery];
 
   // Prepare data for BarChart (Latency based on selected percentile)
-  const barChartData = queryKeys.map((qId) => {
+  const barChartData = filteredQueries.map((qId) => {
     const qData = summary?.queries[qId];
     const key = `${selectedPercentile}_ms` as const;
     return {
@@ -87,7 +87,7 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({ initialExpId }) => {
   });
 
   // Prepare data for Throughput QPS chart
-  const qpsChartData = queryKeys.map((qId) => {
+  const qpsChartData = filteredQueries.map((qId) => {
     const qData = summary?.queries[qId];
     return {
       name: qId,
@@ -96,15 +96,63 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({ initialExpId }) => {
     };
   });
 
-  // Prepare data for RadarChart (Normalized performance score per query category)
-  const radarChartData = [
-    { subject: "Point Lookup (Q1)", postgresql: 85, mongodb: 70 },
-    { subject: "Date Range (Q2)", postgresql: 65, mongodb: 80 },
-    { subject: "Multi-Filter (Q3)", postgresql: 55, mongodb: 75 },
-    { subject: "Count Agg (Q4)", postgresql: 95, mongodb: 60 },
-    { subject: "Group Sum (Q5)", postgresql: 90, mongodb: 40 },
-    { subject: "JOIN Top-20 (Q6)", postgresql: 95, mongodb: 35 },
-  ];
+  // Prepare dynamic data for RadarChart (Normalized performance score per query category)
+  const queryNames: Record<string, string> = {
+    Q1: "Point Lookup (Q1)",
+    Q2: "Date Range (Q2)",
+    Q3: "Multi-Filter (Q3)",
+    Q4: "Count Agg (Q4)",
+    Q5: "Group Sum (Q5)",
+    Q6: "JOIN Top-20 (Q6)",
+    Q7: "Keyset Paging (Q7)",
+    Q7_keyset: "Keyset Paging (Q7)",
+    Q7_offset: "Offset Paging (Q7)",
+    Q8: "Embedding (Q8)",
+    Q8_track_a: "Referenced (Q8A)",
+    Q8_track_b: "Embedded (Q8B)",
+  };
+
+  const radarChartData = queryKeys.length > 0
+    ? queryKeys.slice(0, 8).map((qId) => {
+        const qData = summary?.queries[qId];
+        const pgP50 = qData?.postgresql?.p50_ms ?? 0;
+        const mongoP50 = qData?.mongodb?.p50_ms ?? 0;
+        const pgQps = qData?.postgresql?.throughput_qps ?? 0;
+        const mongoQps = qData?.mongodb?.throughput_qps ?? 0;
+
+        let pgScore = 50;
+        let mongoScore = 50;
+
+        if (pgQps > 0 || mongoQps > 0) {
+          const maxQps = Math.max(pgQps, mongoQps);
+          pgScore = maxQps > 0 ? Math.round((pgQps / maxQps) * 100) : 0;
+          mongoScore = maxQps > 0 ? Math.round((mongoQps / maxQps) * 100) : 0;
+        } else if (pgP50 > 0 && mongoP50 > 0) {
+          const minLat = Math.min(pgP50, mongoP50);
+          pgScore = Math.round((minLat / pgP50) * 100);
+          mongoScore = Math.round((minLat / mongoP50) * 100);
+        } else if (pgP50 > 0) {
+          pgScore = 100;
+          mongoScore = 0;
+        } else if (mongoP50 > 0) {
+          mongoScore = 100;
+          pgScore = 0;
+        }
+
+        return {
+          subject: queryNames[qId] || qId,
+          postgresql: Math.max(10, Math.min(100, pgScore)),
+          mongodb: Math.max(10, Math.min(100, mongoScore)),
+        };
+      })
+    : [
+        { subject: "Point Lookup (Q1)", postgresql: 50, mongodb: 50 },
+        { subject: "Date Range (Q2)", postgresql: 50, mongodb: 50 },
+        { subject: "Multi-Filter (Q3)", postgresql: 50, mongodb: 50 },
+        { subject: "Count Agg (Q4)", postgresql: 50, mongodb: 50 },
+        { subject: "Group Sum (Q5)", postgresql: 50, mongodb: 50 },
+        { subject: "JOIN Top-20 (Q6)", postgresql: 50, mongodb: 50 },
+      ];
 
   // Calculate Win/Loss score
   let pgWins = 0;

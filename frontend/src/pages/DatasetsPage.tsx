@@ -42,6 +42,13 @@ export const DatasetsPage: React.FC = () => {
 
   useEffect(() => {
     loadEnv();
+    validateDataset(`${profile}-seed${seed}`)
+      .then((res) => {
+        if (res && res.counts) {
+          setValidationResult(res);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleValidate = async () => {
@@ -68,7 +75,7 @@ export const DatasetsPage: React.FC = () => {
       setLoadingAction("load");
       addToast("info", `Đang nạp dataset ${profile}-seed${seed} vào cả PostgreSQL và MongoDB...`);
       const datasetId = `${profile}-seed${seed}`;
-      const res = await loadDataset(datasetId, undefined, indexProfile);
+      const res = await loadDataset(datasetId, undefined, indexProfile, distribution);
       addToast("success", `Nạp thành công: ${res.message || "Hoàn tất nạp dữ liệu vào cả 2 hệ thống"}`);
       await handleValidate();
       loadEnv();
@@ -101,35 +108,52 @@ export const DatasetsPage: React.FC = () => {
   > = {
     fixture: {
       label: "Fixture",
-      customers: 20,
+      customers: 12,
       orders: 50,
-      products: 30,
+      products: 20,
       desc: "Kiểm tra đúng đắn & Smoke Test nhanh",
     },
     small: {
       label: "Small",
-      customers: 2000,
+      customers: 1000,
       orders: 10000,
       products: 500,
       desc: "Tập dữ liệu nghiệm thu chính thức",
     },
     medium: {
       label: "Medium",
-      customers: 15000,
+      customers: 10000,
       orders: 100000,
-      products: 2000,
+      products: 5000,
       desc: "Kiểm tra mở rộng quy mô",
     },
     large: {
       label: "Large",
       customers: 100000,
       orders: 1000000,
-      products: 10000,
+      products: 20000,
       desc: "Thử thách giới hạn RAM 2048MB",
     },
   };
 
   const currentProfile = profileDetails[profile] || profileDetails.fixture;
+
+  const activeCounts = validationResult?.counts || env?.counts;
+  const pgOrders = activeCounts?.postgresql?.orders;
+  const mongoOrders = activeCounts?.mongodb?.orders;
+  const pgCustomers = activeCounts?.postgresql?.customers;
+  const mongoCustomers = activeCounts?.mongodb?.customers;
+  const pgProducts = activeCounts?.postgresql?.products;
+  const mongoProducts = activeCounts?.mongodb?.products;
+
+  const calcPercent = (count: number | undefined, target: number) => {
+    if (count == null || target <= 0) return 0;
+    return Math.min(100, Math.max(0, Math.round((count / target) * 100)));
+  };
+
+  const formatCount = (count: number | undefined) => {
+    return count != null ? count.toLocaleString() : "—";
+  };
 
   return (
     <div className="page-wrapper">
@@ -300,18 +324,14 @@ export const DatasetsPage: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.3rem" }}>
                 <span>Đơn hàng (Orders):</span>
                 <strong>
-                  PG: {env?.counts?.postgresql?.orders ?? "—"} / Mongo:{" "}
-                  {env?.counts?.mongodb?.orders ?? "—"}
+                  PG: {formatCount(pgOrders)} / Mongo: {formatCount(mongoOrders)}
                 </strong>
               </div>
               <div className="mini-bar-track">
                 <div
                   className="mini-bar-fill"
                   style={{
-                    width: `${Math.min(
-                      100,
-                      (((env?.counts?.postgresql?.orders ?? 0) / currentProfile.orders) * 100) || 50
-                    )}%`,
+                    width: `${calcPercent(pgOrders, currentProfile.orders)}%`,
                     background: "var(--pg-color)",
                   }}
                 />
@@ -323,18 +343,14 @@ export const DatasetsPage: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.3rem" }}>
                 <span>Khách hàng (Customers):</span>
                 <strong>
-                  PG: {env?.counts?.postgresql?.customers ?? "—"} / Mongo:{" "}
-                  {env?.counts?.mongodb?.customers ?? "—"}
+                  PG: {formatCount(pgCustomers)} / Mongo: {formatCount(mongoCustomers)}
                 </strong>
               </div>
               <div className="mini-bar-track">
                 <div
                   className="mini-bar-fill"
                   style={{
-                    width: `${Math.min(
-                      100,
-                      (((env?.counts?.postgresql?.customers ?? 0) / currentProfile.customers) * 100) || 50
-                    )}%`,
+                    width: `${calcPercent(pgCustomers, currentProfile.customers)}%`,
                     background: "var(--mongo-color)",
                   }}
                 />
@@ -346,18 +362,14 @@ export const DatasetsPage: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.3rem" }}>
                 <span>Sản phẩm (Products):</span>
                 <strong>
-                  PG: {env?.counts?.postgresql?.products ?? "—"} / Mongo:{" "}
-                  {env?.counts?.mongodb?.products ?? "—"}
+                  PG: {formatCount(pgProducts)} / Mongo: {formatCount(mongoProducts)}
                 </strong>
               </div>
               <div className="mini-bar-track">
                 <div
                   className="mini-bar-fill"
                   style={{
-                    width: `${Math.min(
-                      100,
-                      (((env?.counts?.postgresql?.products ?? 0) / currentProfile.products) * 100) || 50
-                    )}%`,
+                    width: `${calcPercent(pgProducts, currentProfile.products)}%`,
                     background: "var(--accent-purple)",
                   }}
                 />
@@ -373,8 +385,9 @@ export const DatasetsPage: React.FC = () => {
                 className="code-panel font-mono"
                 style={{ fontSize: "0.65rem", padding: "0.4rem 0.6rem", wordBreak: "break-all" }}
               >
-                {validationResult?.manifest?.sha256 ||
-                  "b566071c14791350b8ef7ee65957d813ee066d4e2c32415a2f10c8d7d4df858b"}
+                {validationResult?.checksum_sha256 ||
+                  validationResult?.manifest?.sha256 ||
+                  "—"}
               </div>
             </div>
           </div>

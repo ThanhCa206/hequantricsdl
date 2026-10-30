@@ -97,9 +97,19 @@ def analyze_experiment_samples(experiment_dir: Path) -> Dict[str, Any]:
     """
     samples_file = experiment_dir / "samples.jsonl"
     manifest_file = experiment_dir / "manifest.json"
+    summary_file = experiment_dir / "summary.json"
 
     if not samples_file.exists():
         return {"error": f"samples.jsonl not found in {experiment_dir}"}
+
+    # Fast O(1) cache check if summary.json exists and is fresher than samples.jsonl
+    if summary_file.exists():
+        try:
+            if summary_file.stat().st_mtime >= samples_file.stat().st_mtime:
+                with open(summary_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
 
     manifest = {}
     if manifest_file.exists():
@@ -225,10 +235,19 @@ def analyze_experiment_samples(experiment_dir: Path) -> Dict[str, Any]:
             ) if summary_by_query[q]["postgresql"]["p50_ms"] > 0 and summary_by_query[q]["mongodb"]["p50_ms"] > 0 else None,
         }
 
-    return {
+    result = {
         "experiment_id": manifest.get("experiment_id", experiment_dir.name),
         "created_at_utc": manifest.get("created_at_utc"),
         "status": manifest.get("status"),
         "config": manifest.get("config", {}),
         "queries": summary_by_query,
     }
+
+    # Cache calculated summary for subsequent O(1) response time
+    try:
+        with open(summary_file, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+    except Exception:
+        pass
+
+    return result

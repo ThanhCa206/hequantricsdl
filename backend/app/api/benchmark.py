@@ -3,6 +3,7 @@ Strictly implements SPEC.md Section 7, Section 9 (Gate G4).
 """
 
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
@@ -11,12 +12,19 @@ from pydantic import BaseModel, Field
 
 from app.benchmark.lock import JobState, global_experiment_lock
 from app.benchmark.runner import BenchmarkConfig, BenchmarkRunner
+from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/benchmark", tags=["Benchmark"])
 
 
 class BenchmarkRunRequest(BaseModel):
-    experiment_id: str = Field(..., description="Unique experiment ID (e.g. E0-smoke-fixture)")
+    experiment_id: str = Field(
+        ...,
+        pattern=r"^[a-zA-Z0-9_\-]+$",
+        description="Unique experiment ID (alphanumeric, dashes, underscores only)",
+    )
     mode: Literal["L", "T"] = Field("L", description="Mode L (latency) or Mode T (throughput)")
     dataset: str = Field("fixture-seed42", description="Dataset identifier")
     profile: str = Field("fixture", description="Profile name (fixture, small, medium, large)")
@@ -36,8 +44,10 @@ def _execute_runner_in_background(config: BenchmarkConfig):
     runner = BenchmarkRunner(config)
     try:
         runner.run()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception("Benchmark background execution failed: %s", e)
+        if global_experiment_lock.is_locked():
+            global_experiment_lock.release(final_status=JobState.FAILED, error=str(e))
 
 
 @router.get("/status")
@@ -49,7 +59,7 @@ def get_benchmark_status():
 @router.post("/dry-run")
 def dry_run_benchmark(request: BenchmarkRunRequest):
     """Estimate cells count and duration without running actual benchmark."""
-    config = BenchmarkConfig(**request.dict())
+    config = BenchmarkConfig(**request.model_dump())
     runner = BenchmarkRunner(config)
     return runner.dry_run()
 
@@ -57,14 +67,24 @@ def dry_run_benchmark(request: BenchmarkRunRequest):
 @router.post("/run")
 def start_benchmark_run(request: BenchmarkRunRequest):
     """Initiate a benchmark experiment in the background under global lock."""
-    # Check if already locked (BENCH-11)
-    if global_experiment_lock.is_locked():
+    config = BenchmarkConfig(**request.model_dump())
+    total_cells = len(config.queries) * config.repeats * len(config.engines)
+
+    # Acquire lock atomically before spawning background thread (BENCH-11, ARCH-01)
+    acquired = global_experiment_lock.acquire(
+        experiment_id=config.experiment_id,
+        mode=config.mode,
+        dataset=config.dataset,
+        index_profile=config.index_profile,
+        total_cells=total_cells,
+        total_repeats=config.repeats,
+    )
+    if not acquired:
         raise HTTPException(
             status_code=409,
             detail="Another benchmark or administrative operation is currently running. Request rejected (409 Conflict).",
         )
 
-    config = BenchmarkConfig(**request.dict())
     t = threading.Thread(target=_execute_runner_in_background, args=(config,), daemon=True)
     t.start()
 
@@ -86,14 +106,14 @@ def cancel_active_benchmark():
 
 
 @router.get("/experiments")
-def list_experiments(base_dir: str = "results"):
+def list_experiments(base_dir: Optional[str] = None):
     """List historical experiment directories and their manifest status."""
-    res_path = Path(base_dir)
-    if not res_path.exists():
+    results_base = Path(base_dir or get_settings().results_dir).resolve()
+    if not results_base.exists():
         return []
 
     experiments = []
-    for exp_dir in sorted(res_path.iterdir()):
+    for exp_dir in sorted(results_base.iterdir()):
         if exp_dir.is_dir() and (exp_dir / "manifest.json").exists():
             try:
                 with open(exp_dir / "manifest.json", "r", encoding="utf-8") as f:
@@ -111,15 +131,15 @@ def list_experiments(base_dir: str = "results"):
 
 
 @router.get("/experiments/{experiment_id}")
-def get_experiment_manifest(experiment_id: str, base_dir: str = "results"):
-    """Retrieve full manifest.json for a given experiment ID."""
+def get_experiment_manifest(experiment_id: str, base_dir: Optional[str] = None):
+    """Retrieve full manifest.json for a given experiment ID with strict path validation."""
     import re
     if not re.match(r"^[a-zA-Z0-9_\-]+$", experiment_id):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid experiment ID '{experiment_id}': disallowed characters.",
         )
-    base_path = Path(base_dir).resolve()
+    base_path = Path(base_dir or get_settings().results_dir).resolve()
     target_path = (base_path / experiment_id).resolve()
     if not str(target_path).startswith(str(base_path)):
         raise HTTPException(status_code=400, detail="Path traversal attempt detected.")

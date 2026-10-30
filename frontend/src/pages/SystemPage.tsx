@@ -23,9 +23,9 @@ export const SystemPage: React.FC = () => {
 
   const { addToast } = useToast();
 
-  const loadData = async () => {
+  const loadData = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       const [envData, healthData] = await Promise.all([
         fetchEnvironment().catch(() => null),
         fetchHealth().catch(() => null),
@@ -35,13 +35,13 @@ export const SystemPage: React.FC = () => {
     } catch (err: any) {
       addToast("error", err.message);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 5000);
+    loadData(true);
+    const interval = setInterval(() => loadData(false), 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -75,7 +75,7 @@ export const SystemPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="btn btn-secondary" onClick={loadData}>
+        <button className="btn btn-secondary" onClick={() => loadData(false)}>
           <RefreshCw size={15} /> Làm Mới Trạng Thái
         </button>
       </div>

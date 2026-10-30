@@ -119,12 +119,13 @@ class PostgresAdapter(BaseAdapter):
         from app.domain.query_catalog import POSTGRES_QUERIES, normalize_query_output
 
         pool = self._ensure_pool()
-        if "sql" in params:
+        if query_id in POSTGRES_QUERIES:
+            sql = POSTGRES_QUERIES[query_id]
+        elif query_id.startswith("live_test") and "sql" in params:
             sql = params["sql"]
-            sql_params = params.get("sql_params", {})
         else:
-            sql = POSTGRES_QUERIES.get(query_id, f"/* query_id: {query_id} */ SELECT 1;")
-            sql_params = params.get("sql_params", params)
+            raise ValueError(f"Query '{query_id}' not found in PostgreSQL catalog.")
+        sql_params = params
 
         with pool.connection() as conn:
             with conn.cursor() as cur:
@@ -159,12 +160,13 @@ class PostgresAdapter(BaseAdapter):
         from app.domain.query_catalog import POSTGRES_QUERIES
 
         pool = self._ensure_pool()
-        if "sql" in params:
+        if query_id in POSTGRES_QUERIES:
+            sql = POSTGRES_QUERIES[query_id]
+        elif query_id.startswith("live_test") and "sql" in params:
             sql = params["sql"]
-            sql_params = params.get("sql_params", {})
         else:
-            sql = POSTGRES_QUERIES.get(query_id, "SELECT 1;")
-            sql_params = params.get("sql_params", params)
+            raise ValueError(f"Query '{query_id}' not found in PostgreSQL catalog.")
+        sql_params = params
 
         explain_sql = f"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) {sql}"
 

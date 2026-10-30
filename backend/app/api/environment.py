@@ -44,6 +44,7 @@ class EnvironmentResponse(BaseModel):
     host: HostSpecs
     database_targets: DatabaseTargets
     config: Dict[str, Any]
+    counts: Dict[str, Dict[str, int]] | None = None
 
 
 def _get_node_version() -> str | None:
@@ -104,6 +105,13 @@ def get_environment() -> EnvironmentResponse:
         memory_limit_quota=settings.container_mem_limit,
     )
 
+    # Collect live database record counts if available
+    try:
+        from app.api.datasets import _get_live_counts
+        counts = _get_live_counts()
+    except Exception:
+        counts = None
+
     return EnvironmentResponse(
         project_name=settings.project_name,
         spec_version=settings.spec_version,
@@ -113,4 +121,5 @@ def get_environment() -> EnvironmentResponse:
         host=host_specs,
         database_targets=db_targets,
         config=settings.get_sanitized_config(),
+        counts=counts,
     )

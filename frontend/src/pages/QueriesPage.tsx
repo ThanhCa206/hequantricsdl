@@ -542,10 +542,16 @@ export const QueriesPage: React.FC = () => {
             const pgDuration = pgRes?.execution_time_ms ?? pgRes?.duration_ms ?? 0;
             const mongoDuration = mongoRes?.execution_time_ms ?? mongoRes?.duration_ms ?? 0;
             const sampleData = pgRes?.data?.slice(0, 3) || pgRes?.sample_rows || [];
-            const fasterEngine =
-              pgDuration < mongoDuration
-                ? { name: "PostgreSQL", speedup: (mongoDuration / (pgDuration || 0.01)).toFixed(1) }
-                : { name: "MongoDB", speedup: (pgDuration / (mongoDuration || 0.01)).toFixed(1) };
+            const canCompareSpeed =
+              pgRes?.status === "success" &&
+              mongoRes?.status === "success" &&
+              pgDuration > 0 &&
+              mongoDuration > 0;
+            const fasterEngine = canCompareSpeed
+              ? (pgDuration < mongoDuration
+                  ? { name: "PostgreSQL", speedup: (mongoDuration / (pgDuration || 0.01)).toFixed(1) }
+                  : { name: "MongoDB", speedup: (pgDuration / (mongoDuration || 0.01)).toFixed(1) })
+              : null;
 
             return (
               <>
@@ -554,9 +560,11 @@ export const QueriesPage: React.FC = () => {
                     <CheckCircle2 size={18} color="var(--success)" /> Kết Quả Đối Soát Hai CSDL
                   </span>
                   <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                    <span className="badge badge-purple">
-                      {fasterEngine.name} nhanh hơn {fasterEngine.speedup}x
-                    </span>
+                    {fasterEngine && (
+                      <span className="badge badge-purple">
+                        {fasterEngine.name} nhanh hơn {fasterEngine.speedup}x
+                      </span>
+                    )}
                     <span className={`badge ${isEquiv ? "badge-success" : "badge-danger"}`}>
                       {isEquiv ? "KẾT QUẢ ĐỒNG NHẤT (PASS)" : "LỆCH KẾT QUẢ (FAIL)"}
                     </span>

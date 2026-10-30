@@ -123,12 +123,19 @@ class ExperimentLock:
         total_cells: int = 0,
         total_repeats: int = 1,
     ) -> bool:
-        """Attempt to acquire exclusive lock. Returns False if already locked."""
+        """Attempt to acquire exclusive lock. Returns False if already locked by another job."""
         with self._thread_lock:
             if self._active_job and self._active_job.status in (
                 JobState.RUNNING,
                 JobState.CANCELLING,
             ):
+                if self._active_job.experiment_id == experiment_id:
+                    if total_cells > 0:
+                        self._active_job.total_cells = total_cells
+                    if total_repeats > 0:
+                        self._active_job.total_repeats = total_repeats
+                    self._save_state_file()
+                    return True
                 return False
 
             self._cancel_event.clear()

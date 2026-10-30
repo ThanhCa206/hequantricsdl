@@ -8,8 +8,9 @@ from typing import Any, Dict
 from fastapi import APIRouter, Response, status
 from pydantic import BaseModel
 
-from app.adapters.mongodb import MongoAdapter
+from app.adapters import get_adapter
 from app.adapters.postgres import PostgresAdapter
+from app.adapters.mongodb import MongoAdapter
 from app.config import get_settings
 
 router = APIRouter(tags=["Health"])
@@ -41,11 +42,11 @@ def get_health(response: Response) -> HealthResponse:
     now_utc = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
     # Inspect PostgreSQL health with bounded timeout
-    pg_adapter = PostgresAdapter(settings=settings)
+    pg_adapter = get_adapter("postgresql")
     pg_status = pg_adapter.health(timeout_seconds=2.0)
 
     # Inspect MongoDB health with bounded timeout
-    mongo_adapter = MongoAdapter(settings=settings)
+    mongo_adapter = get_adapter("mongodb")
     mongo_status = mongo_adapter.health(timeout_seconds=2.0)
 
     # Determine overall cluster health

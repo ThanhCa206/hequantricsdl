@@ -15,7 +15,9 @@ async def lifespan(app: FastAPI):
     # Startup actions
     settings = get_settings()
     yield
-    # Shutdown actions (clean up resources if needed)
+    # Shutdown actions: cleanly close database connection pools
+    from app.adapters import close_all_adapters
+    close_all_adapters()
 
 
 settings = get_settings()
